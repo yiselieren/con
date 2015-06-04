@@ -1,7 +1,7 @@
 # con
 console program for tty and sockets communication
 
-# PURPOSE
+## PURPOSE
     **Just console program and nothing besides that**
 
     Note that it runs on Linux only!
@@ -9,13 +9,12 @@ console program for tty and sockets communication
 The **con** tool is a console program. It can communicate to another terminal
 device (like minicom) or to TCP or UNIX domain socket.
 
-In the simplest form<br>
-    con [-b BAUDRATE] TERMINAL_DEVICE
+In the simplest form
+con [-b BAUDRATE] TERMINAL_DEVICE
 it is simple minicom replacement without its complexity and UI.
 
 
-USAGE
-=====
+## USAGE
 
 	con [SWITCHES] {tty_device | path_to_local_socket | [host]:port}
 
@@ -68,8 +67,7 @@ Switches specific for socket connection:
 	-c[lient]           - Connection to socket as client.
 
 
-NOTES
-=====
+## NOTES
 
 1. For some funny historical reason this directory can't be copied to MS-Windows system.
    Don't event try to do that.
