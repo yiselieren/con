@@ -1,16 +1,15 @@
 # con
 console program for tty and sockets communication
 
-PURPOSE
-=======
-    *Just console program and nothing besides that*
+# PURPOSE
+    **Just console program and nothing besides that**
 
     Note that it runs on Linux only!
 
-The *con* tool is a console program. It can communicate to another terminal
+The **con** tool is a console program. It can communicate to another terminal
 device (like minicom) or to TCP or UNIX domain socket.
 
-In the simplest form
+In the simplest form<br>
     con [-b BAUDRATE] TERMINAL_DEVICE
 it is simple minicom replacement without its complexity and UI.
 
@@ -75,5 +74,5 @@ NOTES
 1. For some funny historical reason this directory can't be copied to MS-Windows system.
    Don't event try to do that.
 
-2. Server mode accepts connection only once. I.e. when connection is accepted *con*
+2. Server mode accepts connection only once. I.e. when connection is accepted **con**
    stops to listen for other incoming connections
