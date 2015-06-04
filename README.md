@@ -9,8 +9,8 @@ console program for tty and sockets communication
 The **con** tool is a console program. It can communicate to another terminal
 device (like minicom) or to TCP or UNIX domain socket.
 
-In the simplest form
-con [-b BAUDRATE] TERMINAL_DEVICE
+In the simplest form  
+    con [-b BAUDRATE] TERMINAL_DEVICE
 it is simple minicom replacement without its complexity and UI.
 
 
@@ -20,12 +20,12 @@ it is simple minicom replacement without its complexity and UI.
 
 The tool can be used in a few different modes:
 
-1. Communicaton program to serial line (like minicom):
-       con [-t] [-b BAUDRATE] TERM_DEVICE
-   Example:
-       con /dev/ttyUSB0
-       con -b 115200 /dev/ttyUSB0
-       con - 9600 /dev/ttyS0
+1. Communicaton program to serial line (like minicom):  
+       con [-t] [-b BAUDRATE] TERM_DEVICE  
+   Example:  
+       con /dev/ttyUSB0  
+       con -b 115200 /dev/ttyUSB0  
+       con - 9600 /dev/ttyS0  
 
 2. Communicaton program to TCP socket in a client mode:
        con -c ADDR:PORT
