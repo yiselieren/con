@@ -10,7 +10,7 @@ The **con** tool is a console program. It can communicate to another terminal
 device (like minicom) or to TCP or UNIX domain socket.
 
 In the simplest form  
-    con [-b BAUDRATE] TERMINAL_DEVICE
+    con [-b BAUDRATE] TERMINAL_DEVICE  
 it is simple minicom replacement without its complexity and UI.
 
 
