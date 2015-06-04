@@ -1,31 +1,35 @@
-# con
 console program for tty and sockets communication
+minicom replacement
 
-## PURPOSE
+
+PURPOSE
+=======
+
     **Just console program and nothing besides that**
 
     Note that it runs on Linux only!
 
-The **con** tool is a console program. It can communicate to another terminal
+The *con* tool is a console program. It can communicate to another terminal
 device (like minicom) or to TCP or UNIX domain socket.
 
-In the simplest form  
-    con [-b BAUDRATE] TERMINAL_DEVICE  
+In the simplest form
+    con [-b BAUDRATE] TERMINAL_DEVICE
 it is simple minicom replacement without its complexity and UI.
 
 
-## USAGE
+USAGE
+=====
 
 	con [SWITCHES] {tty_device | path_to_local_socket | [host]:port}
 
 The tool can be used in a few different modes:
 
-1. Communicaton program to serial line (like minicom):  
-       con [-t] [-b BAUDRATE] TERM_DEVICE  
-   Example:  
-       con /dev/ttyUSB0  
-       con -b 115200 /dev/ttyUSB0  
-       con - 9600 /dev/ttyS0  
+1. Communicaton program to serial line (like minicom):
+       con [-t] [-b BAUDRATE] TERM_DEVICE
+   Example:
+       con /dev/ttyUSB0
+       con -b 115200 /dev/ttyUSB0
+       con - 9600 /dev/ttyS0
 
 2. Communicaton program to TCP socket in a client mode:
        con -c ADDR:PORT
@@ -53,13 +57,15 @@ The tool can be used in a few different modes:
 SWITCHES may be:
 	-h[elp]             - Print help message.
 	-e[cho]             - Echo keyboard input locally.
-	-q[uit] KEY         - Quit connection key. May be in integer as 0x01 or 001
-	                      or in a "control-a", "cntrl/a" or "ctrl/a" form
-	                      Default is "cntrl/a".
+	-q[uit] KEY         - Quit connection key. May be in integer
+                          as 0x01 or 001 or in a "control-a",
+                          "cntrl/a" or "ctrl/a" form.
+                          Default is "cntrl/a".
 
 Switches specific for tty_device:
-	-t[erm]             - Work as serial communicaton program. The is a default
-	                      mode. Note that "-b" switch assumes "-t"
+	-t[erm]             - Work as serial communicaton program. The is
+                          a default mode. Note that -b switch assumes
+                          -t so in case -b is specified -t don't
 	-b[aud] <baud_rate> - Set the baud rate for target connection.
 
 Switches specific for socket connection:
@@ -67,10 +73,11 @@ Switches specific for socket connection:
 	-c[lient]           - Connection to socket as client.
 
 
-## NOTES
+NOTES
+=====
 
-1. For some funny historical reason this directory can't be copied to MS-Windows system.
-   Don't event try to do that.
+1. For some funny historical reason this directory can't be copied to
+   MS-Windows system. Don't event try to do that.
 
-2. Server mode accepts connection only once. I.e. when connection is accepted **con**
-   stops to listen for other incoming connections
+2. Server mode accepts connection only once. I.e. when connection is
+   accepted *con* stops to listen for other incoming connections
