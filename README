@@ -57,10 +57,11 @@ The tool can be used in a few different modes:
 SWITCHES may be:
 	-h[elp]             - Print help message.
 	-e[cho]             - Echo keyboard input locally.
-	-q[uit] KEY         - Quit connection key. May be in integer
+	-x[exit] KEY        - Exit connection key. May be in integer
                           as 0x01 or 001 or in a "control-a",
                           "cntrl/a" or "ctrl/a" form.
                           Default is "cntrl/a".
+    -q                  - Be quiet
 
 Switches specific for tty_device:
 	-t[erm]             - Work as serial communicaton program. The is
