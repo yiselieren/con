@@ -25,12 +25,15 @@
 
 #include "tty.h"
 
-#define PERR(args...)   do { fprintf(stderr, args); finish(1); } while(0)
+#define PERR(args...) do { fprintf(stderr, args); finish(1); } while(0)
+#define RERR(args...) do { fprintf(stderr, args); return;    } while(0)
 
 Tty             *tty = 0;
 int             tty1 = -1;
 char            *tty1_name = 0;
 const char      *tty2_name = "/dev/tty";
+unsigned char   exitChr = '\001';
+int             echo_flag=0;
 
 void usage(const char *s)
 {
@@ -43,7 +46,8 @@ void usage(const char *s)
         "1. Communicaton program to serial line (like minicom):\n"
         "       %s [-t] [-b BAUDRATE] TERM_DEVICE\n"
         "   Example:\n"
-        "       %s /dev/ttyUSB0\n"
+        "       %s -b 115200 /dev/ttyUSB0\n"
+        "       %s -x ctrl/b /dev/ttyS0\n"
         "\n"
         "2. Communicaton program to TCP socket in a client mode:\n"
         "       %s -c ADDR:PORT\n"
@@ -69,9 +73,10 @@ void usage(const char *s)
         "SWITCHES may be:\n"
         "\t-h[elp]             - Print help message.\n"
         "\t-e[cho]             - Echo keyboard input locally.\n"
-        "\t-q[uit] KEY         - Quit connection key. May be in integer as 0x01 or 001\n"
+        "\t-x[exit] KEY        - Exit connection key. May be in integer as 0x01 or 001\n"
         "\t                      or in a \"control-a\", \"cntrl/a\" or \"ctrl/a\" form\n"
         "\t                      Default is \"cntrl/a\".\n"
+        "\t-q                  - Be quiet\n"
         "\n"
         "Switches specific for tty_device:\n"
         "\t-t[erm]             - Work as serial communicaton program. The is a default\n"
@@ -82,7 +87,7 @@ void usage(const char *s)
         "\t-s[erver]           - Accept connection to socket as server.\n"
         "\t-c[lient]           - Connection to socket as client.\n"
         ;
-    fprintf(stderr, msg, s, s, s, s,    s, s, s, s,    s, s, s, s);
+    fprintf(stderr, msg, s, s, s, s,    s, s, s, s,    s, s, s, s,    s);
     exit (1);
 }
 
@@ -111,13 +116,50 @@ extern "C" void finish_int(int)
     finish(1);
 }
 
-int main(int ac, char *av[])
+void con_core(int cli_fd, const char *cli_name, int term_fd, const char *term_name)
 {
     const int            MAXBUF = 1024;
     static unsigned char buf[MAXBUF];
-    unsigned char        exitChr = '\001';
+    fd_set               rds;
+    int                  num = (cli_fd > term_fd ? cli_fd : term_fd) + 1;
+    for (;;)
+    {
+        FD_ZERO(&rds);
+        FD_SET(cli_fd, &rds);
+        FD_SET(term_fd, &rds);
+        if (select(num, &rds, 0, 0, 0) < 0)
+            RERR("select failure: %s\n", strerror(errno));
+        if (FD_ISSET(cli_fd, &rds))
+        {
+            int buf_cnt = read(cli_fd, buf, MAXBUF);
+            if (buf_cnt < 0)
+                RERR("\r\n\"%s\" read error: %s\n", cli_name, strerror(errno));
+            if (buf_cnt == 0)
+                RERR("\r\n\"%s\" EOF\n", cli_name);
+            if (write(term_fd, buf, buf_cnt) != buf_cnt)
+                RERR("\r\n\"%s\" write error: %s\n", term_name, strerror(errno));
+        }
+        if (FD_ISSET(term_fd, &rds))
+        {
+            int buf_cnt = read(term_fd, buf, MAXBUF);
+            if (buf_cnt < 0)
+                RERR("\r\n\"%s\" read error: %s\n", term_name, strerror(errno));
+            if (buf_cnt == 0)
+                RERR("\r\n\"%s\" EOF\n", term_name);
+            if (buf_cnt == 1  &&  *buf == exitChr)
+                break;
+            if (echo_flag  &&  write(term_fd, buf, buf_cnt) != buf_cnt)
+                RERR("\r\n\"%s\" write error: %s\n", term_name, strerror(errno));
+            if (write(cli_fd, buf, buf_cnt) != buf_cnt)
+                RERR("\r\n\"%s\" write error: %s\n", cli_name, strerror(errno));
+       }
+    }
+}
+
+int main(int ac, char *av[])
+{
     int                  TargetBaud = 0, nparams=0;
-    int                  tty_flag=0, socket_flag=0, cli_flag=0, srv_flag=0, echo_flag=0;
+    int                  tty_flag=0, socket_flag=0, cli_flag=0, srv_flag=0, quiet_flag=0;
     char                 *TargetCon = 0;
 
     /* Command line parsing. */
@@ -147,7 +189,11 @@ int main(int ac, char *av[])
             {
                 tty_flag = 1;
             }
-            else if (!strcmp(av[i], "q")  ||  !strcmp(av[i], "quit"))
+            else if (!strcmp(av[i], "q")  ||  !strcmp(av[i], "quiet"))
+            {
+                quiet_flag = 1;
+            }
+            else if (!strcmp(av[i], "x")  ||  !strcmp(av[i], "exit"))
             {
                 if (++i >= ac)
                     PERR("After switch \"%s\" quit character is expected.\n",av[--i]);
@@ -252,6 +298,11 @@ int main(int ac, char *av[])
     signal(SIGPIPE, finish_int);
     tty = new Tty();
 
+    // Open second connection, always to /dev/tty
+    int tty2 = tty->open(tty2_name);
+    if (tty2 == -1)
+        PERR("Can't open /dev/tty: %s\n", strerror(errno));
+
     // Open first connection
     if (socket_flag)
     {
@@ -270,7 +321,6 @@ int main(int ac, char *av[])
                  * UNIX socket server
                  */
 
-                struct sockaddr_un  cli_unix_addr;
                 struct sockaddr_un  serv_addr;
                 int                 servlen;
                 int                 one=1;
@@ -288,6 +338,7 @@ int main(int ac, char *av[])
                 serv_addr.sun_family = AF_UNIX;
                 strncpy(serv_addr.sun_path, TargetCon, sizeof(serv_addr.sun_path));
                 servlen = strlen(serv_addr.sun_path) + sizeof(serv_addr.sun_family);
+                unlink(serv_addr.sun_path);
                 if (bind(tty1, (struct sockaddr *)&serv_addr, servlen) < 0)
                     PERR("bind: %s", strerror(errno));
 
@@ -295,18 +346,53 @@ int main(int ac, char *av[])
                 if (listen(tty1, 1) < 0)
                     PERR("listen: %s", strerror(errno));
 
-                int clilen = sizeof(cli_unix_addr);
-                int new_sock = accept(tty1, (struct sockaddr *)&cli_unix_addr, (socklen_t *)&clilen);
-                if (new_sock < 0)
-                    PERR("accept: %s", strerror(errno));
-                close(tty1);
-                tty1 = new_sock;
-
-                strncpy(addr, cli_unix_addr.sun_path, addr_l-1);
-
-                fprintf(stderr,"Connection accepted from %s\n", addr);
                 tty1_name = new char[strlen(TargetCon) + 16];
-                snprintf(tty1_name, 32, "server %s", TargetCon);
+                snprintf(tty1_name, 32, "Server %s", TargetCon);
+                if (!quiet_flag)
+                    fprintf(stderr, "\r\n%s wating for connection, use Cntrl/%c to exit\r\n", tty1_name, exitChr+0x40);
+                for (;;)
+                {
+                    fd_set  rds;
+
+                    FD_ZERO(&rds);
+                    FD_SET(tty1, &rds);
+                    FD_SET(tty2, &rds);
+                    if (select((tty1 > tty2 ? tty1 : tty2) + 1, &rds, 0, 0, 0) < 0)
+                        PERR("select failure: %s\n", strerror(errno));
+                    if (FD_ISSET(tty1, &rds))
+                    {
+                        struct sockaddr_un  cli_unix_addr;
+                        int                 clilen = sizeof(cli_unix_addr);
+
+                        cli_unix_addr.sun_path[0] = 0;
+                        int new_sock = accept(tty1, (struct sockaddr *)&cli_unix_addr, (socklen_t *)&clilen);
+                        if (new_sock < 0)
+                            PERR("accept: %s", strerror(errno));
+
+                        if (strlen(cli_unix_addr.sun_path))
+                            strncpy(addr, cli_unix_addr.sun_path, addr_l-1);
+                        else
+                            strcpy(addr, "unkonown client");
+
+                        if (!quiet_flag)
+                            fprintf(stderr, "Connection accepted from %s, use Cntrl/%c to exit\r\n", addr, exitChr+0x40);
+                        con_core(new_sock, tty1_name, tty2, tty2_name);
+                        close(new_sock);
+                        if (!quiet_flag)
+                            fprintf(stderr, "\r\n\r\n%s wating for connection, use Cntrl/%c to exit\r\n", tty1_name, exitChr+0x40);
+                    }
+                    if (FD_ISSET(tty2, &rds))
+                    {
+                        unsigned char ch;
+                        int buf_cnt = read(tty2, &ch, 1);
+                        if (buf_cnt < 0)
+                            PERR("\r\n\"%s\" read error: %s\n", tty2_name, strerror(errno));
+                        if (buf_cnt == 0)
+                            PERR("\r\n\"%s\" EOF\n", tty2_name);
+                        if (ch == exitChr)
+                            finish(0);
+                    }
+                }
             }
             else
             {
@@ -320,7 +406,6 @@ int main(int ac, char *av[])
                 if (*end)
                     PERR("Invalid port value: \"%s\" -- ?\n", end);
 
-                struct sockaddr_in  cli_inet_addr;
                 struct sockaddr_in  serv_addr;
                 struct hostent      *hent;
                 int                 one=1;
@@ -345,27 +430,56 @@ int main(int ac, char *av[])
                 if (listen(tty1, 1) < 0)
                     PERR("listen: %s", strerror(errno));
 
-                int clilen = sizeof(cli_inet_addr);
-                int new_sock = accept(tty1, (struct sockaddr *)&cli_inet_addr, (socklen_t *)&clilen);
-                if (new_sock < 0)
-                    PERR("accept: %s", strerror(errno));
-                close(tty1);
-                tty1 = new_sock;
-
-                // Determine the client host name
-                hent = gethostbyaddr((char *)&cli_inet_addr.sin_addr,
-                                     sizeof(cli_inet_addr.sin_addr), AF_INET);
-                if (hent)
-                    strncpy(name, hent->h_name, name_l-1);
-                else
-                    strncpy(name, "????", name_l-1);
-
-                // Determine the client host address
-                strncpy(addr, inet_ntoa(cli_inet_addr.sin_addr), addr_l-1);
-
-                fprintf(stderr,"Connection accepted from %s (%s)\n", name, addr);
                 tty1_name = new char[32];
-                snprintf(tty1_name, 32, "server :%d", port);
+                snprintf(tty1_name, 32, "Server :%d", port);
+                if (!quiet_flag)
+                    fprintf(stderr, "\r\n%s wating for connection, use Cntrl/%c to exit\r\n", tty1_name, exitChr+0x40);
+                for (;;)
+                {
+                    fd_set  rds;
+
+                    FD_ZERO(&rds);
+                    FD_SET(tty1, &rds);
+                    FD_SET(tty2, &rds);
+                    if (select((tty1 > tty2 ? tty1 : tty2) + 1, &rds, 0, 0, 0) < 0)
+                        PERR("select failure: %s\n", strerror(errno));
+                    if (FD_ISSET(tty1, &rds))
+                    {
+                        struct sockaddr_in  cli_inet_addr;
+                        int                 clilen = sizeof(cli_inet_addr);
+
+                        int new_sock = accept(tty1, (struct sockaddr *)&cli_inet_addr, (socklen_t *)&clilen);
+                        if (new_sock < 0)
+                            PERR("accept: %s", strerror(errno));
+
+                        // Determine the client host name
+                        hent = gethostbyaddr((char *)&cli_inet_addr.sin_addr,
+                                             sizeof(cli_inet_addr.sin_addr), AF_INET);
+                        if (hent)
+                            strncpy(name, hent->h_name, name_l-1);
+                        else
+                            strncpy(name, "???", name_l-1);
+
+                        strncpy(addr, inet_ntoa(cli_inet_addr.sin_addr), addr_l-1);
+                        if (!quiet_flag)
+                            fprintf(stderr,"Connection accepted from %s (%s), use Cntrl/%c to exit\r\n", name, addr, exitChr+0x40);
+                        con_core(new_sock, tty1_name, tty2, tty2_name);
+                        close(new_sock);
+                        if (!quiet_flag)
+                            fprintf(stderr, "\r\n\r\n%s wating for connection, use Cntrl/%c to exit\r\n", tty1_name, exitChr+0x40);
+                    }
+                    if (FD_ISSET(tty2, &rds))
+                    {
+                        unsigned char ch;
+                        int buf_cnt = read(tty2, &ch, 1);
+                        if (buf_cnt < 0)
+                            PERR("\r\n\"%s\" read error: %s\n", tty2_name, strerror(errno));
+                        if (buf_cnt == 0)
+                            PERR("\r\n\"%s\" EOF\n", tty2_name);
+                        if (ch == exitChr)
+                            finish(0);
+                    }
+                }
             }
         }
         else if (cli_flag)
@@ -466,45 +580,9 @@ int main(int ac, char *av[])
     else
         PERR("Internal error #2\n");
 
-    // Open second connection, always to /dev/tty
-    int tty2 = tty->open(tty2_name);
-    if (tty2 == -1)
-        PERR("Can't open /dev/tty: %s\n", strerror(errno));
-
     // Main loop
-    fd_set rds;
-    int num = (tty1 > tty2 ? tty1 : tty2) + 1;
-    for (;;)
-    {
-        FD_ZERO(&rds);
-        FD_SET(tty1, &rds);
-        FD_SET(tty2, &rds);
-        if (select(num, &rds, 0, 0, 0) < 0)
-            PERR("select failure: %s\n", strerror(errno));
-        if (FD_ISSET(tty1, &rds))
-        {
-            int buf_cnt = read(tty1, buf, MAXBUF);
-            if (buf_cnt < 0)
-                PERR("\r\n\"%s\" read error: %s\n", tty1_name, strerror(errno));
-            if (buf_cnt == 0)
-                PERR("\r\n\"%s\" EOF\n", tty1_name);
-            if (write(tty2, buf, buf_cnt) != buf_cnt)
-                PERR("\r\n\"%s\" write error: %s\n", tty2_name, strerror(errno));
-        }
-        if (FD_ISSET(tty2, &rds))
-        {
-            int buf_cnt = read(tty2, buf, MAXBUF);
-            if (buf_cnt < 0)
-                PERR("\r\n\"%s\" read error: %s\n", tty2_name, strerror(errno));
-            if (buf_cnt == 0)
-                PERR("\r\n\"%s\" EOF\n", tty2_name);
-            if (buf_cnt == 1  &&  *buf == exitChr)
-                break;
-            if (echo_flag  &&  write(tty2, buf, buf_cnt) != buf_cnt)
-                PERR("\r\n\"%s\" write error: %s\n", tty2_name, strerror(errno));
-            if (write(tty1, buf, buf_cnt) != buf_cnt)
-                PERR("\r\n\"%s\" write error: %s\n", tty1_name, strerror(errno));
-       }
-    }
+    if (!quiet_flag)
+        fprintf(stderr, "Connected to %s, use Cntrl/%c to exit\r\n", tty1_name, exitChr+0x40);
+    con_core(tty1, tty1_name, tty2, tty2_name);
     finish();
 }

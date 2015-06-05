@@ -38,7 +38,7 @@ The tool can be used in a few different modes:
        con -c 192.168.2.100:8080
 
 3. Communicaton program to TCP socket in a server mode:
-   See Note 2
+   Only one connection at one time is served
        con -s :PORT
    Example:
        con -s :8080
@@ -49,7 +49,7 @@ The tool can be used in a few different modes:
        con -c /tmp/my_named_socket
 
 5. Communicaton program to UNIX socket in a server mode:
-   See Note 2
+   Only one connection at one time is served
        con -s SOCKET_PATH
    Example:
        con -s /tmp/my_named_socket
@@ -78,6 +78,3 @@ NOTES
 
 1. For some funny historical reason this directory can't be copied to
    MS-Windows system. Don't event try to do that.
-
-2. Server mode accepts connection only once. I.e. when connection is
-   accepted *con* stops to listen for other incoming connections
