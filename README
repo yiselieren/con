@@ -20,7 +20,7 @@ it is simple minicom replacement without its complexity and UI.
 USAGE
 =====
 
-	con [SWITCHES] {tty_device | path_to_local_socket | [host]:port}
+    con [SWITCHES] {tty_device | path_to_local_socket | [host]:port}
 
 The tool can be used in a few different modes:
 
@@ -55,24 +55,24 @@ The tool can be used in a few different modes:
        con -s /tmp/my_named_socket
 
 SWITCHES may be:
-	-h[elp]             - Print help message.
-	-e[cho]             - Echo keyboard input locally.
-	-x[exit] KEY        - Exit connection key. May be in integer
+    -h[elp]             - Print help message.
+    -e[cho]             - Echo keyboard input locally.
+    -x[exit] KEY        - Exit connection key. May be in integer
                           as 0x01 or 001 or in a "control-a",
                           "cntrl/a" or "ctrl/a" form.
                           Default is "cntrl/a".
     -q                  - Be quiet
 
 Switches specific for tty_device:
-	-t[erm]             - Work as serial communicaton program. The is
+    -t[erm]             - Work as serial communicaton program. The is
                           a default mode. Note that -b switch assumes
                           -t so in case -b is specified -t is not
                           necessary.
-	-b[aud] <baud_rate> - Set the baud rate for target connection.
+    -b[aud] <baud_rate> - Set the baud rate for target connection.
 
 Switches specific for socket connection:
-	-s[erver]           - Accept connection to socket as server.
-	-c[lient]           - Connection to socket as client.
+    -s[erver]           - Accept connection to socket as server.
+    -c[lient]           - Connection to socket as client.
 
 
 NOTES
