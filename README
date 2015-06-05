@@ -29,7 +29,7 @@ The tool can be used in a few different modes:
    Example:
        con /dev/ttyUSB0
        con -b 115200 /dev/ttyUSB0
-       con - 9600 /dev/ttyS0
+       con -x ctrl/b -q /dev/ttyS0
 
 2. Communicaton program to TCP socket in a client mode:
        con -c ADDR:PORT
@@ -65,7 +65,8 @@ SWITCHES may be:
 Switches specific for tty_device:
 	-t[erm]             - Work as serial communicaton program. The is
                           a default mode. Note that -b switch assumes
-                          -t so in case -b is specified -t don't
+                          -t so in case -b is specified -t is not
+                          necessary.
 	-b[aud] <baud_rate> - Set the baud rate for target connection.
 
 Switches specific for socket connection:
