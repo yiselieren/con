@@ -143,20 +143,25 @@ int Tty::open(const char *tty_port, const int speed, const bool reopen, const in
         if ((tty_h[ind] = ::open(tty_port, O_RDWR | O_NONBLOCK)) == -1)
             return -1;
     }
-    if (isatty(tty_h[ind]))
+    if (!isatty(tty_h[ind]))
     {
-        if (tcgetattr(tty_h[ind], &defaults[tty_h[ind]]) == -1)
-        {
-            close(tty_h[ind]);
-            return -1;
-        }
-        memcpy(&sg, &defaults[tty_h[ind]], sizeof(termios));
-        setraw(sg, speed);
-        if (tcsetattr(tty_h[ind], TCSANOW, &sg) == -1)
-        {
-            close(tty_h[ind]);
-            return -1;
-        }
+        close(tty_h[ind]);
+        tty_h[ind] = -1;
+        return -1;
+    }
+    if (tcgetattr(tty_h[ind], &defaults[tty_h[ind]]) == -1)
+    {
+        close(tty_h[ind]);
+        tty_h[ind] = -1;
+        return -1;
+    }
+    memcpy(&sg, &defaults[tty_h[ind]], sizeof(termios));
+    setraw(sg, speed);
+    if (tcsetattr(tty_h[ind], TCSANOW, &sg) == -1)
+    {
+        close(tty_h[ind]);
+        tty_h[ind] = -1;
+        return -1;
     }
     return tty_h[ind];
 }

@@ -274,23 +274,25 @@ int main(int ac, char *av[])
     if (!socket_flag && !tty_flag)
     {
         if (strchr(TargetCon, ':'))
+            // Contains ':' - most probably socket
             socket_flag = 1;
-        else if (strchr(TargetCon, '/'))
-            tty_flag = 1;
         else
-            socket_flag = 1;
+            tty_flag = 1;
     }
 
     // server or client ?
     if (socket_flag  &&  (!srv_flag && !cli_flag))
     {
         if (*TargetCon == ':')
+            // Starts with ':' - most probably server
             srv_flag = 1;
-        else if (!strchr(TargetCon, ':'))
+        else if (strchr(TargetCon, ':'))
+            // Contains ':' - most probably client
             srv_flag = 1;
         else
-            cli_flag = 1;
+            PERR("\'%s\" is ambiguous - server or client flag must be specified\n", TargetCon);
     }
+    //fprintf(stderr, "socket_flag:%d, tty_flag:%d, srv_flag:%d, cli_flag:%d\n", socket_flag, tty_flag, srv_flag, cli_flag);
 
     signal(SIGINT,  finish_int);
     signal(SIGQUIT, finish_int);
@@ -347,7 +349,7 @@ int main(int ac, char *av[])
                     PERR("listen: %s", strerror(errno));
 
                 tty1_name = new char[strlen(TargetCon) + 16];
-                snprintf(tty1_name, 32, "Server %s", TargetCon);
+                snprintf(tty1_name, 32, "Unix domain server %s", TargetCon);
                 if (!quiet_flag)
                     fprintf(stderr, "\r\n%s wating for connection, use Cntrl/%c to exit\r\n", tty1_name, exitChr+0x40);
                 for (;;)
@@ -431,7 +433,7 @@ int main(int ac, char *av[])
                     PERR("listen: %s", strerror(errno));
 
                 tty1_name = new char[32];
-                snprintf(tty1_name, 32, "Server :%d", port);
+                snprintf(tty1_name, 32, "TCP server :%d", port);
                 if (!quiet_flag)
                     fprintf(stderr, "\r\n%s wating for connection, use Cntrl/%c to exit\r\n", tty1_name, exitChr+0x40);
                 for (;;)
@@ -564,25 +566,15 @@ int main(int ac, char *av[])
         {
             PERR("Can't open %s: %s\n", TargetCon, err);
         }
-        if (tty1 == -1)
-        {
-            if (errno == ENOTTY)
-            {
-                // Regular file
-                tty1 = open(TargetCon, O_RDWR | O_SYNC);
-                if (tty1 == -1)
-                    PERR("Can't open file %s: %s\n", TargetCon, strerror(errno));
-            }
-            else
-                PERR("Can't open tty %s: %s\n", TargetCon, strerror(errno));
-        }
+        if (tty1 < 0)
+            PERR("Can't open tty device %s: %s\n", TargetCon, strerror(errno));
+
+        if (!quiet_flag)
+            fprintf(stderr, "Connected to %s, use Cntrl/%c to exit\r\n", tty1_name, exitChr+0x40);
+        con_core(tty1, tty1_name, tty2, tty2_name);
+        finish();
     }
     else
         PERR("Internal error #2\n");
 
-    // Main loop
-    if (!quiet_flag)
-        fprintf(stderr, "Connected to %s, use Cntrl/%c to exit\r\n", tty1_name, exitChr+0x40);
-    con_core(tty1, tty1_name, tty2, tty2_name);
-    finish();
 }
