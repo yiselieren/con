@@ -54,6 +54,6 @@ private:
     int      maxterms;
     termios  *defaults;
     int      *tty_h;
-    void     setraw(termios& t, int speed);
+    bool     setraw(termios& t, int speed);
     void     do_close(const int entry);
 };

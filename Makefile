@@ -11,11 +11,11 @@ OBJ_DIR  = OBJ_$(SYS)
 
 ### General flags
 ifdef DEBUG
-CFLAGS = -g -Wall -W -Werror
-CPPFLAGS = -g -Wall -W -Werror
+CFLAGS = -g -Wall -fno-exceptions -W -Werror
+CPPFLAGS = -g -Wall -fno-exceptions -W -Werror
 else
-CFLAGS   = -O5 -Wall -W -Werror
-CPPFLAGS = -O5 -Wall -W -Werror
+CFLAGS   = -O5 -Wall -fno-exceptions -W -Werror
+CPPFLAGS = -O5 -Wall -fno-exceptions -W -Werror
 endif
 LFLAGS   =
 LIBS     =

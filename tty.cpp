@@ -34,7 +34,7 @@ Tty::~Tty()
     maxterms = 0;
 }
 
-void Tty::setraw(termios& t, int speed)
+bool Tty::setraw(termios& t, int speed)
 {
     t.c_iflag |= (IGNBRK);
     t.c_iflag &= ~(INPCK | ISTRIP | INLCR | ICRNL | IUCLC | IXON | IXOFF);
@@ -115,12 +115,16 @@ void Tty::setraw(termios& t, int speed)
             break;
 #endif
         default:
-            throw "Invalid line speed";
+            errno = EINVAL;
+            return false;
         }
 
-        cfsetospeed(&t, speed);
-        cfsetispeed(&t, speed);
+        if (cfsetospeed(&t, speed))
+            return false;
+        if (cfsetispeed(&t, speed))
+            return false;
     }
+    return true;
 }
 
 int Tty::open(const char *tty_port, const int speed, const bool reopen, const int tty_fd)
@@ -140,7 +144,7 @@ int Tty::open(const char *tty_port, const int speed, const bool reopen, const in
         tty_h[ind] = tty_fd;
     else
     {
-        if ((tty_h[ind] = ::open(tty_port, O_RDWR | O_NONBLOCK)) == -1)
+        if ((tty_h[ind] = ::open(tty_port, O_RDWR | O_NONBLOCK)) < 0)
             return -1;
     }
     if (!isatty(tty_h[ind]))
@@ -156,7 +160,12 @@ int Tty::open(const char *tty_port, const int speed, const bool reopen, const in
         return -1;
     }
     memcpy(&sg, &defaults[tty_h[ind]], sizeof(termios));
-    setraw(sg, speed);
+    if (!setraw(sg, speed))
+    {
+        close(tty_h[ind]);
+        tty_h[ind] = -1;
+        return -1;
+    }
     if (tcsetattr(tty_h[ind], TCSANOW, &sg) == -1)
     {
         close(tty_h[ind]);

@@ -277,6 +277,7 @@ int main(int ac, char *av[])
             // Contains ':' - most probably socket
             socket_flag = 1;
         else
+            // Otherwise - most probably tty
             tty_flag = 1;
     }
 
@@ -554,18 +555,7 @@ int main(int ac, char *av[])
     else if (tty_flag)
     {
         tty1_name = strdup(TargetCon);
-        try
-        {
-            tty1 = tty->open(TargetCon, TargetBaud);
-        }
-        catch (char *err)
-        {
-            PERR("Can't open %s: %s\n", TargetCon, err);
-        }
-        catch (const char *err)
-        {
-            PERR("Can't open %s: %s\n", TargetCon, err);
-        }
+        tty1 = tty->open(TargetCon, TargetBaud);
         if (tty1 < 0)
             PERR("Can't open tty device %s: %s\n", TargetCon, strerror(errno));
 
