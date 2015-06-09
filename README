@@ -14,7 +14,7 @@ device (like minicom) or to TCP or UNIX domain socket.
 
 In the simplest form
     con [-b BAUDRATE] TERMINAL_DEVICE
-it is simple minicom replacement without its complexity and UI.
+it is a simple minicom replacement without its complexity and UI.
 
 
 USAGE
