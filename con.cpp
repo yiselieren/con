@@ -551,6 +551,7 @@ int main(int ac, char *av[])
         }
         else
             PERR("Internal error #1\n");
+
     }
     else if (tty_flag)
     {
@@ -561,10 +562,10 @@ int main(int ac, char *av[])
 
         if (!quiet_flag)
             fprintf(stderr, "Connected to %s, use Cntrl/%c to exit\r\n", tty1_name, exitChr+0x40);
-        con_core(tty1, tty1_name, tty2, tty2_name);
-        finish();
     }
     else
         PERR("Internal error #2\n");
 
+    con_core(tty1, tty1_name, tty2, tty2_name);
+    finish();
 }
