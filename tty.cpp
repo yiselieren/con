@@ -144,7 +144,7 @@ int Tty::open(const char *tty_port, const int speed, const bool reopen, const in
         tty_h[ind] = tty_fd;
     else
     {
-        if ((tty_h[ind] = ::open(tty_port, O_RDWR | O_NONBLOCK)) < 0)
+        if ((tty_h[ind] = ::open(tty_port, O_RDWR /*| O_NONBLOCK*/)) < 0)
             return -1;
     }
     if (!isatty(tty_h[ind]))

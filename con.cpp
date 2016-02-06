@@ -116,6 +116,26 @@ extern "C" void finish_int(int)
     finish(1);
 }
 
+int readn(int fd, void *ptr, int nbytes)
+{
+    int     nread;
+
+    do
+        nread = read(fd, ptr, nbytes);
+    while (nread < 0 && (errno == EINTR || errno == EAGAIN));
+    return nread;
+}
+
+int writen(int fd, const void *ptr, int nbytes)
+{
+    int     nwritten;
+
+    do
+        nwritten = write(fd, ptr, nbytes);
+    while (nwritten < 0 && (errno == EINTR || errno == EAGAIN));
+    return nwritten;
+} // TCP::writen
+
 void con_core(int cli_fd, const char *cli_name, int term_fd, const char *term_name)
 {
     const int            MAXBUF = 1024;
@@ -131,26 +151,26 @@ void con_core(int cli_fd, const char *cli_name, int term_fd, const char *term_na
             RERR("select failure: %s\n", strerror(errno));
         if (FD_ISSET(cli_fd, &rds))
         {
-            int buf_cnt = read(cli_fd, buf, MAXBUF);
+            int buf_cnt = readn(cli_fd, buf, MAXBUF);
             if (buf_cnt < 0)
                 RERR("\r\n\"%s\" read error: %s\n", cli_name, strerror(errno));
             if (buf_cnt == 0)
                 RERR("\r\n\"%s\" EOF\n", cli_name);
-            if (write(term_fd, buf, buf_cnt) != buf_cnt)
+            if (writen(term_fd, buf, buf_cnt) != buf_cnt)
                 RERR("\r\n\"%s\" write error: %s\n", term_name, strerror(errno));
         }
         if (FD_ISSET(term_fd, &rds))
         {
-            int buf_cnt = read(term_fd, buf, MAXBUF);
+            int buf_cnt = readn(term_fd, buf, MAXBUF);
             if (buf_cnt < 0)
                 RERR("\r\n\"%s\" read error: %s\n", term_name, strerror(errno));
             if (buf_cnt == 0)
                 RERR("\r\n\"%s\" EOF\n", term_name);
             if (buf_cnt == 1  &&  *buf == exitChr)
                 break;
-            if (echo_flag  &&  write(term_fd, buf, buf_cnt) != buf_cnt)
+            if (echo_flag  &&  writen(term_fd, buf, buf_cnt) != buf_cnt)
                 RERR("\r\n\"%s\" write error: %s\n", term_name, strerror(errno));
-            if (write(cli_fd, buf, buf_cnt) != buf_cnt)
+            if (writen(cli_fd, buf, buf_cnt) != buf_cnt)
                 RERR("\r\n\"%s\" write error: %s\n", cli_name, strerror(errno));
        }
     }
