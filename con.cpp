@@ -21,6 +21,7 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/un.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "tty.h"
@@ -33,7 +34,8 @@ int             tty1 = -1;
 char            *tty1_name = 0;
 const char      *tty2_name = "/dev/tty";
 unsigned char   exitChr = '\001';
-int             echo_flag=0;
+bool            echo_flag=0;
+FILE            *logf = NULL;
 
 void usage(const char *s)
 {
@@ -73,6 +75,9 @@ void usage(const char *s)
         "SWITCHES may be:\n"
         "\t-h[elp]             - Print help message.\n"
         "\t-e[cho]             - Echo keyboard input locally.\n"
+        "\t-l[og] FILENAME     - Log everything to specified file, file be overwritten\n"
+        "\t-a[ppend] FILENAME  - Appends all logs to specified file\n"
+        "\t-n[ocolor]          - Filter out colors and CRNL sequences in a log file\n"
         "\t-x[exit] KEY        - Exit connection key. May be in integer as 0x01 or 001\n"
         "\t                      or in a \"control-a\", \"cntrl/a\" or \"ctrl/a\" form\n"
         "\t                      Default is \"cntrl/a\".\n"
@@ -106,8 +111,13 @@ void finish(int stat = 0)
     }
     if (tty1_name)
     {
-        delete [] tty1_name;
+        free(tty1_name);
         tty1_name = 0;
+    }
+    if (logf)
+    {
+        fclose(logf);
+        logf = NULL;
     }
     exit (stat);
 }
@@ -134,9 +144,51 @@ int writen(int fd, const void *ptr, int nbytes)
         nwritten = write(fd, ptr, nbytes);
     while (nwritten < 0 && (errno == EINTR || errno == EAGAIN));
     return nwritten;
-} // TCP::writen
+}
 
-void con_core(int cli_fd, const char *cli_name, int term_fd, const char *term_name)
+enum Pstate { REGULAR, COLOR, CRNL };
+static Pstate log_pstate = REGULAR;
+void log(const unsigned char *buf, const int buf_cnt, bool filter_colors)
+{
+    if (!logf)
+        return;
+
+    if (filter_colors)
+    {
+        for (int i=0; i<buf_cnt; i++)
+        {
+            switch(log_pstate)
+            {
+            case REGULAR:
+                if (buf[i] == '\033')
+                    log_pstate = COLOR;
+                else if (buf[i] == '\r')
+                    log_pstate = CRNL;
+                else
+                    fwrite(&buf[i], 1, 1, logf);
+                break;
+            case COLOR:
+                if (buf[i] == 'm')
+                    log_pstate = REGULAR;
+                break;
+            case CRNL:
+                if (buf[i] == '\n')
+                    fwrite(&buf[i], 1, 1, logf);
+                else
+                {
+                    fwrite("\r", 1, 1, logf);
+                    fwrite(&buf[i], 1, 1, logf);
+                }
+                log_pstate = REGULAR;
+                break;
+            }
+        }
+    }
+    else
+        fwrite(buf, buf_cnt, 1, logf);
+}
+
+void con_core(int cli_fd, const char *cli_name, int term_fd, const char *term_name, bool filter_colors)
 {
     const int            MAXBUF = 1024;
     static unsigned char buf[MAXBUF];
@@ -158,6 +210,8 @@ void con_core(int cli_fd, const char *cli_name, int term_fd, const char *term_na
                 RERR("\r\n\"%s\" EOF\n", cli_name);
             if (writen(term_fd, buf, buf_cnt) != buf_cnt)
                 RERR("\r\n\"%s\" write error: %s\n", term_name, strerror(errno));
+            if (logf)
+                log(buf, buf_cnt, filter_colors);
         }
         if (FD_ISSET(term_fd, &rds))
         {
@@ -172,6 +226,8 @@ void con_core(int cli_fd, const char *cli_name, int term_fd, const char *term_na
                 RERR("\r\n\"%s\" write error: %s\n", term_name, strerror(errno));
             if (writen(cli_fd, buf, buf_cnt) != buf_cnt)
                 RERR("\r\n\"%s\" write error: %s\n", cli_name, strerror(errno));
+            if (logf)
+                log(buf, buf_cnt, filter_colors);
        }
     }
 }
@@ -179,7 +235,8 @@ void con_core(int cli_fd, const char *cli_name, int term_fd, const char *term_na
 int main(int ac, char *av[])
 {
     int                  TargetBaud = 0, nparams=0;
-    int                  tty_flag=0, socket_flag=0, cli_flag=0, srv_flag=0, quiet_flag=0;
+    bool                 tty_flag=false, socket_flag=false, cli_flag=false, srv_flag=false, quiet_flag=false;
+    bool                 filter_colors = false;
     char                 *TargetCon = 0;
 
     /* Command line parsing. */
@@ -193,7 +250,7 @@ int main(int ac, char *av[])
             ++av[i];
             if (!strcmp(av[i], "e")  ||  !strcmp(av[i], "echo"))
             {
-                echo_flag = 1;
+                echo_flag = true;
             }
             else if (!strcmp(av[i], "b")  ||  !strcmp(av[i], "baud"))
             {
@@ -203,15 +260,50 @@ int main(int ac, char *av[])
                 TargetBaud = (int)strtol(av[i], &end, 0);
                 if (*end)
                     PERR("Invalid baud rate: \"%s\" -- ?\n", end);
-                tty_flag = 1;
+                tty_flag = true;
+            }
+            else if (!strcmp(av[i], "l")  ||  !strcmp(av[i], "log"))
+            {
+                if (++i >= ac)
+                    PERR("After switch \"%s\" baud rate is expected.\n",av[--i]);
+                if (logf)
+                    PERR("Log file have to be specified only once\n");
+                logf = fopen(av[i], "w");
+                if (!logf)
+                    PERR("File \"%s\" open error: %s\n", av[i], strerror(errno));
+            }
+            else if (!strcmp(av[i], "a")  ||  !strcmp(av[i], "append"))
+            {
+                time_t    t;
+                struct tm *tmp;
+                char      outstr[200];
+
+                if (++i >= ac)
+                    PERR("After switch \"%s\" baud rate is expected.\n",av[--i]);
+                if (logf)
+                    PERR("Log file have to be specified only once\n");
+                logf = fopen(av[i], "a");
+                fprintf(logf, "\n\n\n*****     New CON session");
+                if (!logf)
+                    PERR("File \"%s\" open error: %s\n", av[i], strerror(errno));
+                 t = time(NULL);
+                 tmp = localtime(&t);
+                 if (tmp &&  strftime(outstr, sizeof(outstr)-1, "%a, %d %b %y %T %z", tmp))
+                     fprintf(logf, ", started at %s     *****\n\n\n", outstr);
+                 else
+                     fprintf(logf, "     *****\n\n\n");
+            }
+            else if (!strcmp(av[i], "n")  ||  !strcmp(av[i], "nocolor"))
+            {
+                filter_colors = true;
             }
             else if (!strcmp(av[i], "t")  ||  !strcmp(av[i], "term"))
             {
-                tty_flag = 1;
+                tty_flag = true;
             }
             else if (!strcmp(av[i], "q")  ||  !strcmp(av[i], "quiet"))
             {
-                quiet_flag = 1;
+                quiet_flag = true;
             }
             else if (!strcmp(av[i], "x")  ||  !strcmp(av[i], "exit"))
             {
@@ -261,13 +353,13 @@ int main(int ac, char *av[])
             }
             else if (!strcmp(av[i], "s")  ||  !strcmp(av[i], "server"))
             {
-                srv_flag = 1;
-                socket_flag = 1;
+                srv_flag = true;
+                socket_flag = true;
             }
             else if (!strcmp(av[i], "c")  ||  !strcmp(av[i], "client"))
             {
-                cli_flag = 1;
-                socket_flag = 1;
+                cli_flag = true;
+                socket_flag = true;
             }
             else if (!strcmp(av[i], "h")  ||  !strcmp(av[i], "help"))
             {
@@ -295,10 +387,10 @@ int main(int ac, char *av[])
     {
         if (strchr(TargetCon, ':'))
             // Contains ':' - most probably socket
-            socket_flag = 1;
+            socket_flag = true;
         else
             // Otherwise - most probably tty
-            tty_flag = 1;
+            tty_flag = true;
     }
 
     // server or client ?
@@ -306,10 +398,10 @@ int main(int ac, char *av[])
     {
         if (*TargetCon == ':')
             // Starts with ':' - most probably server
-            srv_flag = 1;
+            srv_flag = true;
         else if (strchr(TargetCon, ':'))
             // Contains ':' - most probably client
-            srv_flag = 1;
+            srv_flag = true;
         else
             PERR("\'%s\" is ambiguous - server or client flag must be specified\n", TargetCon);
     }
@@ -369,7 +461,7 @@ int main(int ac, char *av[])
                 if (listen(tty1, 1) < 0)
                     PERR("listen: %s", strerror(errno));
 
-                tty1_name = new char[strlen(TargetCon) + 16];
+                tty1_name = (char *)malloc(strlen(TargetCon) + 16);
                 snprintf(tty1_name, 32, "Unix domain server %s", TargetCon);
                 if (!quiet_flag)
                     fprintf(stderr, "\r\n%s wating for connection, use Cntrl/%c to exit\r\n", tty1_name, exitChr+0x40);
@@ -399,7 +491,7 @@ int main(int ac, char *av[])
 
                         if (!quiet_flag)
                             fprintf(stderr, "Connection accepted from %s, use Cntrl/%c to exit\r\n", addr, exitChr+0x40);
-                        con_core(new_sock, tty1_name, tty2, tty2_name);
+                        con_core(new_sock, tty1_name, tty2, tty2_name, filter_colors);
                         close(new_sock);
                         if (!quiet_flag)
                             fprintf(stderr, "\r\n\r\n%s wating for connection, use Cntrl/%c to exit\r\n", tty1_name, exitChr+0x40);
@@ -453,7 +545,7 @@ int main(int ac, char *av[])
                 if (listen(tty1, 1) < 0)
                     PERR("listen: %s", strerror(errno));
 
-                tty1_name = new char[32];
+                tty1_name = (char*)malloc(32);
                 snprintf(tty1_name, 32, "TCP server :%d", port);
                 if (!quiet_flag)
                     fprintf(stderr, "\r\n%s wating for connection, use Cntrl/%c to exit\r\n", tty1_name, exitChr+0x40);
@@ -486,7 +578,7 @@ int main(int ac, char *av[])
                         strncpy(addr, inet_ntoa(cli_inet_addr.sin_addr), addr_l-1);
                         if (!quiet_flag)
                             fprintf(stderr,"Connection accepted from %s (%s), use Cntrl/%c to exit\r\n", name, addr, exitChr+0x40);
-                        con_core(new_sock, tty1_name, tty2, tty2_name);
+                        con_core(new_sock, tty1_name, tty2, tty2_name, filter_colors);
                         close(new_sock);
                         if (!quiet_flag)
                             fprintf(stderr, "\r\n\r\n%s wating for connection, use Cntrl/%c to exit\r\n", tty1_name, exitChr+0x40);
@@ -565,7 +657,7 @@ int main(int ac, char *av[])
                 if (connect(tty1, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0)
                     PERR("connect: %s", strerror(errno));
 
-                tty1_name = new char[strlen(TargetCon) + 32];
+                tty1_name = (char*)malloc(strlen(TargetCon) + 32);
                 snprintf(tty1_name, strlen(TargetCon) + 32, "%s:%d", TargetCon, port);
             }
         }
@@ -586,6 +678,6 @@ int main(int ac, char *av[])
     else
         PERR("Internal error #2\n");
 
-    con_core(tty1, tty1_name, tty2, tty2_name);
+    con_core(tty1, tty1_name, tty2, tty2_name, filter_colors);
     finish();
 }
