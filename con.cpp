@@ -148,6 +148,7 @@ int writen(int fd, const void *ptr, int nbytes)
 
 enum Pstate { REGULAR, COLOR, CRNL };
 static Pstate log_pstate = REGULAR;
+static int    cr_count = 0;
 void log(const unsigned char *buf, const int buf_cnt, bool filter_colors)
 {
     if (!logf)
@@ -163,7 +164,10 @@ void log(const unsigned char *buf, const int buf_cnt, bool filter_colors)
                 if (buf[i] == '\033')
                     log_pstate = COLOR;
                 else if (buf[i] == '\r')
+                {
                     log_pstate = CRNL;
+                    cr_count++;
+                }
                 else
                     fwrite(&buf[i], 1, 1, logf);
                 break;
@@ -172,12 +176,19 @@ void log(const unsigned char *buf, const int buf_cnt, bool filter_colors)
                     log_pstate = REGULAR;
                 break;
             case CRNL:
-                if (buf[i] == '\n')
+                if (buf[i] == '\r')
+                    cr_count++;
+                else if (buf[i] == '\n')
+                {
                     fwrite(&buf[i], 1, 1, logf);
+                    cr_count = 0;
+                }
                 else
                 {
-                    fwrite("\r", 1, 1, logf);
+                    for (int j=0; j<cr_count; j++)
+                        fwrite("\r", 1, 1, logf);
                     fwrite(&buf[i], 1, 1, logf);
+                    cr_count = 0;
                 }
                 log_pstate = REGULAR;
                 break;
