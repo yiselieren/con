@@ -3,13 +3,15 @@
  * tty raw connection
  *********************
  */
-#include <unistd.h>
-#include <termios.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
-#include <fcntl.h>
-#include <errno.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <termios.h>
+#include <unistd.h>
 
 #include "tty.h"
 
@@ -29,8 +31,12 @@ Tty::~Tty()
     for (int i=0; i<maxterms; i++)
         if (tty_h[i] != -1)
             do_close(i);
-    delete [] defaults;
-    delete [] tty_h;
+    if (defaults)
+        delete [] defaults;
+    defaults = 0;
+    if (tty_h)
+        delete [] tty_h;
+    tty_h = 0;
     maxterms = 0;
 }
 
@@ -153,13 +159,13 @@ int Tty::open(const char *tty_port, const int speed, const bool reopen, const in
         tty_h[ind] = -1;
         return -1;
     }
-    if (tcgetattr(tty_h[ind], &defaults[tty_h[ind]]) == -1)
+    if (tcgetattr(tty_h[ind], &defaults[ind]) == -1)
     {
         close(tty_h[ind]);
         tty_h[ind] = -1;
         return -1;
     }
-    memcpy(&sg, &defaults[tty_h[ind]], sizeof(termios));
+    memcpy(&sg, &defaults[ind], sizeof(termios));
     if (!setraw(sg, speed))
     {
         close(tty_h[ind]);
@@ -185,7 +191,7 @@ void Tty::close(const int tid)
 void Tty::do_close(const int entry)
 {
     if (isatty(tty_h[entry]))
-        tcsetattr(tty_h[entry], TCSANOW, &defaults[tty_h[entry]]);
+        tcsetattr(tty_h[entry], TCSANOW, &defaults[entry]);
     ::close(tty_h[entry]);
     tty_h[entry] = -1;
 }
