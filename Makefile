@@ -5,7 +5,8 @@
 
 ### Common
 ### ------
-TRG      = con
+TRG1     = con
+TRG2     = send_rs232
 SYS      = $(shell uname)
 OBJ_DIR  = OBJ_$(SYS)
 
@@ -25,17 +26,19 @@ CPP     = g++
 CPPLINK = g++
 DEFS    = -DHOST_X86
 
-all: $(TRG)
+all: $(TRG1) $(TRG2)
 
 clean:
-	@rm -fr $(OBJ_DIR) OBJ_$(SYS)_x86 valgrind* *.gdb *.o *.d *.obj $(TRG) *~ html doxy.*
+	@rm -fr $(OBJ_DIR) OBJ_$(SYS)_x86 valgrind* *.gdb *.o *.d *.obj $(TRG1) $(TRG2) *~ html doxy.*
 
 
 ### Input files
 ### -----------
-SRCS   = con.cpp tty.cpp
+SRCS1   = con.cpp tty.cpp
+SRCS2  = send_rs232.cpp tty.cpp str_utils.cpp
 
-OBJS  = $(SRCS:%.cpp=$(OBJ_DIR)/%.o)
+OBJS1  = $(SRCS1:%.cpp=$(OBJ_DIR)/%.o)
+OBJS2  = $(SRCS2:%.cpp=$(OBJ_DIR)/%.o)
 
 ### Load dependecies
 ### ----------------
@@ -73,5 +76,7 @@ $(OBJ_DIR):
 		mkdir $(OBJ_DIR)
 
 # Targets
-$(TRG):	$(OBJ_DIR) $(OBJS)  Makefile
-		$(CPPLINK) -o $@ $(LFLAGS) $(OBJS) $(LIBS)
+$(TRG1):	$(OBJ_DIR) $(OBJS1)  Makefile
+			$(CPPLINK) -o $@ $(LFLAGS) $(OBJS1) $(LIBS)
+$(TRG2):	$(OBJ_DIR) $(OBJS2)  Makefile
+			$(CPPLINK) -o $@ $(LFLAGS) $(OBJS2) $(LIBS)
