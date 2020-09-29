@@ -36,7 +36,9 @@ const char      *tty2_name = "/dev/tty";
 unsigned char   exitChr = '\001';
 bool            echo_flag = false;
 bool            hexa_flag = false;
+bool            hexa_ascii_flag = false;
 int             hexa_inline = 16;
+int             hexa_ascii_inline = 8;
 FILE            *logf = NULL;
 
 void usage(const char *s)
@@ -81,6 +83,7 @@ void usage(const char *s)
         "\t-a[ppend] FILENAME  - Appends all logs to specified file\n"
         "\t-n[ocolor]          - Filter out colors and CRNL sequences in a log file\n"
         "\t-X                  - Output as hexa bytes\n"
+        "\t-Y                  - Output as hexa and ascii\n"
         "\t-x[exit] KEY        - Exit connection key. May be in integer as 0x01 or 001\n"
         "\t                      or in a \"control-a\", \"cntrl/a\" or \"ctrl/a\" form\n"
         "\t                      Default is \"cntrl/a\".\n"
@@ -224,7 +227,24 @@ void con_core(int cli_fd, const char *cli_name, int term_fd, const char *term_na
                 RERR("\r\n\"%s\" read error: %s\n", cli_name, strerror(errno));
             if (buf_cnt == 0)
                 RERR("\r\n\"%s\" EOF\n", cli_name);
-            if (hexa_flag)
+            if (hexa_ascii_flag)
+            {
+                for (int i=0; i<buf_cnt; i++)
+                {
+                    char xbuf[16];
+                    sprintf(xbuf, "0x%02x [%c]   ", buf[i]&0xff, buf[i] >= ' ' && buf[i] <= '~' ? buf[i] : '.');
+                    if (writen(term_fd, xbuf, strlen(xbuf)) != (int)strlen(xbuf))
+                        RERR("\r\n\"%s\" write error: %s\n", term_name, strerror(errno));
+                    term_cnt++;
+                    if (term_cnt == hexa_ascii_inline)
+                    {
+                        if (writen(term_fd, "\r\n", 2) != 2)
+                            RERR("\r\n\"%s\" write error: %s\n", term_name, strerror(errno));
+                        term_cnt = 0;
+                    }
+                }
+            }
+            else if (hexa_flag)
             {
                 for (int i=0; i<buf_cnt; i++)
                 {
@@ -345,6 +365,10 @@ int main(int ac, char *av[])
             else if (!strcmp(av[i], "X")  ||  !strcmp(av[i], "hexa"))
             {
                 hexa_flag = true;
+            }
+            else if (!strcmp(av[i], "Y")  ||  !strcmp(av[i], "hexa_ascii"))
+            {
+                hexa_ascii_flag = true;
             }
             else if (!strcmp(av[i], "x")  ||  !strcmp(av[i], "exit"))
             {
