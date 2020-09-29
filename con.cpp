@@ -34,7 +34,9 @@ int             tty1 = -1;
 char            *tty1_name = 0;
 const char      *tty2_name = "/dev/tty";
 unsigned char   exitChr = '\001';
-bool            echo_flag=0;
+bool            echo_flag = false;
+bool            hexa_flag = false;
+int             hexa_inline = 16;
 FILE            *logf = NULL;
 
 void usage(const char *s)
@@ -78,6 +80,7 @@ void usage(const char *s)
         "\t-l[og] FILENAME     - Log everything to specified file, file be overwritten\n"
         "\t-a[ppend] FILENAME  - Appends all logs to specified file\n"
         "\t-n[ocolor]          - Filter out colors and CRNL sequences in a log file\n"
+        "\t-X                  - Output as hexa bytes\n"
         "\t-x[exit] KEY        - Exit connection key. May be in integer as 0x01 or 001\n"
         "\t                      or in a \"control-a\", \"cntrl/a\" or \"ctrl/a\" form\n"
         "\t                      Default is \"cntrl/a\".\n"
@@ -203,6 +206,7 @@ void con_core(int cli_fd, const char *cli_name, int term_fd, const char *term_na
 {
     const int            MAXBUF = 1024;
     static unsigned char buf[MAXBUF];
+    static int           term_cnt = 0;
     fd_set               rds;
     int                  num = (cli_fd > term_fd ? cli_fd : term_fd) + 1;
     for (;;)
@@ -214,18 +218,40 @@ void con_core(int cli_fd, const char *cli_name, int term_fd, const char *term_na
             RERR("select failure: %s\n", strerror(errno));
         if (FD_ISSET(cli_fd, &rds))
         {
+            // From client to terminal
             int buf_cnt = readn(cli_fd, buf, MAXBUF);
             if (buf_cnt < 0)
                 RERR("\r\n\"%s\" read error: %s\n", cli_name, strerror(errno));
             if (buf_cnt == 0)
                 RERR("\r\n\"%s\" EOF\n", cli_name);
-            if (writen(term_fd, buf, buf_cnt) != buf_cnt)
-                RERR("\r\n\"%s\" write error: %s\n", term_name, strerror(errno));
+            if (hexa_flag)
+            {
+                for (int i=0; i<buf_cnt; i++)
+                {
+                    char xbuf[8];
+                    sprintf(xbuf, "0x%02x ", buf[i]&0xff);
+                    if (writen(term_fd, xbuf, strlen(xbuf)) != (int)strlen(xbuf))
+                        RERR("\r\n\"%s\" write error: %s\n", term_name, strerror(errno));
+                    term_cnt++;
+                    if (term_cnt == hexa_inline)
+                    {
+                        if (writen(term_fd, "\r\n", 2) != 2)
+                            RERR("\r\n\"%s\" write error: %s\n", term_name, strerror(errno));
+                        term_cnt = 0;
+                    }
+                }
+            }
+            else
+            {
+                if (writen(term_fd, buf, buf_cnt) != buf_cnt)
+                    RERR("\r\n\"%s\" write error: %s\n", term_name, strerror(errno));
+            }
             if (logf)
                 log(buf, buf_cnt, filter_colors);
         }
         if (FD_ISSET(term_fd, &rds))
         {
+            // From terminal to client
             int buf_cnt = readn(term_fd, buf, MAXBUF);
             if (buf_cnt < 0)
                 RERR("\r\n\"%s\" read error: %s\n", term_name, strerror(errno));
@@ -315,6 +341,10 @@ int main(int ac, char *av[])
             else if (!strcmp(av[i], "q")  ||  !strcmp(av[i], "quiet"))
             {
                 quiet_flag = true;
+            }
+            else if (!strcmp(av[i], "X")  ||  !strcmp(av[i], "hexa"))
+            {
+                hexa_flag = true;
             }
             else if (!strcmp(av[i], "x")  ||  !strcmp(av[i], "exit"))
             {
