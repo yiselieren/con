@@ -39,7 +39,7 @@ bool            hexa_flag = false;
 bool            hexa_ascii_flag = false;
 int             hexa_inline = 16;
 int             hexa_ascii_inline = 8;
-FILE            *logf = NULL;
+FILE            *log_file = NULL;
 
 void usage(const char *s)
 {
@@ -120,10 +120,10 @@ void finish(int stat = 0)
         free(tty1_name);
         tty1_name = 0;
     }
-    if (logf)
+    if (log_file)
     {
-        fclose(logf);
-        logf = NULL;
+        fclose(log_file);
+        log_file = NULL;
     }
     exit (stat);
 }
@@ -157,7 +157,7 @@ static Pstate log_pstate = REGULAR;
 static int    cr_count = 0;
 void log(const unsigned char *buf, const int buf_cnt, bool filter_colors)
 {
-    if (!logf)
+    if (!log_file)
         return;
 
     if (filter_colors)
@@ -175,7 +175,7 @@ void log(const unsigned char *buf, const int buf_cnt, bool filter_colors)
                     cr_count++;
                 }
                 else
-                    fwrite(&buf[i], 1, 1, logf);
+                    fwrite(&buf[i], 1, 1, log_file);
                 break;
             case COLOR:
                 if (buf[i] == 'm')
@@ -186,14 +186,14 @@ void log(const unsigned char *buf, const int buf_cnt, bool filter_colors)
                     cr_count++;
                 else if (buf[i] == '\n')
                 {
-                    fwrite(&buf[i], 1, 1, logf);
+                    fwrite(&buf[i], 1, 1, log_file);
                     cr_count = 0;
                 }
                 else
                 {
                     for (int j=0; j<cr_count; j++)
-                        fwrite("\r", 1, 1, logf);
-                    fwrite(&buf[i], 1, 1, logf);
+                        fwrite("\r", 1, 1, log_file);
+                    fwrite(&buf[i], 1, 1, log_file);
                     cr_count = 0;
                 }
                 log_pstate = REGULAR;
@@ -202,7 +202,7 @@ void log(const unsigned char *buf, const int buf_cnt, bool filter_colors)
         }
     }
     else
-        fwrite(buf, buf_cnt, 1, logf);
+        fwrite(buf, buf_cnt, 1, log_file);
 }
 
 void con_core(int cli_fd, const char *cli_name, int term_fd, const char *term_name, bool filter_colors)
@@ -266,7 +266,7 @@ void con_core(int cli_fd, const char *cli_name, int term_fd, const char *term_na
                 if (writen(term_fd, buf, buf_cnt) != buf_cnt)
                     RERR("\r\n\"%s\" write error: %s\n", term_name, strerror(errno));
             }
-            if (logf)
+            if (log_file)
                 log(buf, buf_cnt, filter_colors);
         }
         if (FD_ISSET(term_fd, &rds))
@@ -283,7 +283,7 @@ void con_core(int cli_fd, const char *cli_name, int term_fd, const char *term_na
                 RERR("\r\n\"%s\" write error: %s\n", term_name, strerror(errno));
             if (writen(cli_fd, buf, buf_cnt) != buf_cnt)
                 RERR("\r\n\"%s\" write error: %s\n", cli_name, strerror(errno));
-            if (logf)
+            if (log_file)
                 log(buf, buf_cnt, filter_colors);
        }
     }
@@ -323,10 +323,10 @@ int main(int ac, char *av[])
             {
                 if (++i >= ac)
                     PERR("After switch \"%s\" baud rate is expected.\n",av[--i]);
-                if (logf)
+                if (log_file)
                     PERR("Log file have to be specified only once\n");
-                logf = fopen(av[i], "w");
-                if (!logf)
+                log_file = fopen(av[i], "w");
+                if (!log_file)
                     PERR("File \"%s\" open error: %s\n", av[i], strerror(errno));
             }
             else if (!strcmp(av[i], "a")  ||  !strcmp(av[i], "append"))
@@ -337,18 +337,18 @@ int main(int ac, char *av[])
 
                 if (++i >= ac)
                     PERR("After switch \"%s\" baud rate is expected.\n",av[--i]);
-                if (logf)
+                if (log_file)
                     PERR("Log file have to be specified only once\n");
-                logf = fopen(av[i], "a");
-                fprintf(logf, "\n\n\n*****     New CON session");
-                if (!logf)
+                log_file = fopen(av[i], "a");
+                fprintf(log_file, "\n\n\n*****     New CON session");
+                if (!log_file)
                     PERR("File \"%s\" open error: %s\n", av[i], strerror(errno));
                  t = time(NULL);
                  tmp = localtime(&t);
                  if (tmp &&  strftime(outstr, sizeof(outstr)-1, "%a, %d %b %y %T %z", tmp))
-                     fprintf(logf, ", started at %s     *****\n\n\n", outstr);
+                     fprintf(log_file, ", started at %s     *****\n\n\n", outstr);
                  else
-                     fprintf(logf, "     *****\n\n\n");
+                     fprintf(log_file, "     *****\n\n\n");
             }
             else if (!strcmp(av[i], "n")  ||  !strcmp(av[i], "nocolor"))
             {
