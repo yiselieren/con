@@ -211,14 +211,25 @@ void con_core(int cli_fd, const char *cli_name, int term_fd, const char *term_na
     static unsigned char buf[MAXBUF];
     static int           term_cnt = 0;
     fd_set               rds;
+    fd_set               except_ds;
     int                  num = (cli_fd > term_fd ? cli_fd : term_fd) + 1;
     for (;;)
     {
         FD_ZERO(&rds);
+        FD_ZERO(&except_ds);
         FD_SET(cli_fd, &rds);
         FD_SET(term_fd, &rds);
-        if (select(num, &rds, 0, 0, 0) < 0)
+        FD_SET(cli_fd, &except_ds);
+        FD_SET(term_fd, &except_ds);
+
+        if (select(num, &rds, 0, &except_ds, 0) < 0)
             RERR("select failure: %s\n", strerror(errno));
+
+        if (FD_ISSET(cli_fd, &except_ds))
+            RERR("\r\n\"%s\" error\n", cli_name);
+        if (FD_ISSET(term_fd, &except_ds))
+            RERR("\r\n\"%s\" error\n", term_name);
+
         if (FD_ISSET(cli_fd, &rds))
         {
             // From client to terminal
