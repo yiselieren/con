@@ -488,11 +488,10 @@ int main(int ac, char *av[])
     {
         if (srv_flag)
         {
-            const int name_l = 100;
-            const int addr_l = 20;
-            char      name[name_l], addr[addr_l];
+            int        one=1;
+            const int  name_l = sizeof(((struct hostent*)0)->h_name) + 1;
+            char       name[name_l];
             name[name_l-1] = 0;
-            addr[addr_l-1] = 0;
 
             char *p = strchr(TargetCon, ':');
             if (!p)
@@ -503,7 +502,9 @@ int main(int ac, char *av[])
 
                 struct sockaddr_un  serv_addr;
                 int                 servlen;
-                int                 one=1;
+                const int           addr_l = sizeof(((struct sockaddr_un*)0)->sun_path) + 1;
+                char                addr[addr_l];
+                addr[addr_l-1] = 0;
 
                 // Open a TCP socket (an Internet stream socket).
                 if ((tty1 = socket(AF_UNIX, SOCK_STREAM, 0)) < 0)
@@ -516,7 +517,7 @@ int main(int ac, char *av[])
                 // Bind our local address so that the client can send to us.
                 memset((char *) &serv_addr, 0, sizeof(serv_addr));
                 serv_addr.sun_family = AF_UNIX;
-                strncpy(serv_addr.sun_path, TargetCon, sizeof(serv_addr.sun_path));
+                strncpy(serv_addr.sun_path, TargetCon, sizeof(serv_addr.sun_path)-1);
                 servlen = strlen(serv_addr.sun_path) + sizeof(serv_addr.sun_family);
                 unlink(serv_addr.sun_path);
                 if (bind(tty1, (struct sockaddr *)&serv_addr, servlen) < 0)
@@ -588,7 +589,6 @@ int main(int ac, char *av[])
 
                 struct sockaddr_in  serv_addr;
                 struct hostent      *hent;
-                int                 one=1;
 
                 // Open a TCP socket (an Internet stream socket).
                 if ((tty1 = socket(AF_INET, SOCK_STREAM, 0)) < 0)
@@ -627,6 +627,9 @@ int main(int ac, char *av[])
                     {
                         struct sockaddr_in  cli_inet_addr;
                         int                 clilen = sizeof(cli_inet_addr);
+                        const int           addr_l = 16;  // Max inet_ntoa()
+                        char                addr[addr_l];
+                        addr[addr_l-1] = 0;
 
                         int new_sock = accept(tty1, (struct sockaddr *)&cli_inet_addr, (socklen_t *)&clilen);
                         if (new_sock < 0)
@@ -677,7 +680,7 @@ int main(int ac, char *av[])
                 // Fill the "serv_addr" structure
                 memset((char *) &serv_addr, 0, sizeof(serv_addr));
                 serv_addr.sun_family      = AF_UNIX;
-                strncpy(serv_addr.sun_path, TargetCon, sizeof(serv_addr.sun_path));
+                strncpy(serv_addr.sun_path, TargetCon, sizeof(serv_addr.sun_path)-1);
                 servlen = strlen(serv_addr.sun_path) + sizeof(serv_addr.sun_family);
 
                 // Open a UNIX socket
